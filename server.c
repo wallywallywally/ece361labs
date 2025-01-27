@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
      message[bytes] = '\0';
 
      char response[4];
-     if(strcmp(message, "ftp")) {
+     if(strcmp(message, "ftp") == 0) {
        strcpy(response, "yes");
      } else {
        strcpy(response, "no");

@@ -107,7 +107,7 @@ int main(int argc, char* argv[]) {		// argv[1] for server address, argv[2] for s
 
     char *success_msg = "yes";
     if (strstr(msg_received, success_msg) != NULL) {
-        printf("A file transfer can start!");
+        printf("A file transfer can start!\n");
     }
 
     close(sockfd);
