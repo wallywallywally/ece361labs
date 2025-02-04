@@ -8,17 +8,11 @@
 #include <time.h>
 #include <arpa/inet.h>
 
+#include "packet.h"
+
 #define BUFFER_SIZE 1024
 #define ACK "ACK"
 #define NACK "NACK"
-
-typedef struct {
-    unsigned int total_frag;
-    unsigned int frag_no;
-    unsigned int size;
-    char* filename;
-    char filedata[1000];
-} packet;
 
 int check_arguments(const int count) {
     if (count != 3) {
@@ -50,15 +44,6 @@ int check_file_exists(const char *filename) {
         printf("%s does not exist, exiting...", filename);
         return 0;
     }
-}
-
-void packetise(const char *filename, packet p) {
-    // fill pkt -> need to parse our file from filename
-    
-}
-
-void prepare_payload(packet p, char *payload) {
-    snprintf(payload, BUFFER_SIZE, "%d:%d:%d:%s:%s", p.total_frag, p.frag_no, p.size, p.filename, p.filedata);
 }
 
 int main(int argc, char* argv[]) {		// argv[1] for server address, argv[2] for server port
@@ -101,11 +86,11 @@ int main(int argc, char* argv[]) {		// argv[1] for server address, argv[2] for s
     };
 
     // Send message
-    packet pkt;
+    /*packet pkt;
     char payload[BUFFER_SIZE];
     packetise(filename, pkt);
     prepare_payload(pkt, payload);
-    printf("%s\n", payload);
+    printf("%s\n", payload);*/
 
     const char *msg_ftp = "ftp";
     if (sendto(sockfd, msg_ftp, strlen(msg_ftp), 0, (struct sockaddr *) &server, sizeof(server)) < 0) {
