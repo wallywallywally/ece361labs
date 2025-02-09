@@ -16,12 +16,12 @@ typedef struct {
 } packet;
 
 // Sender stuff
-void packetise(const char *filename, packet p) {
-    // fill pkt -> need to parse our file from filename
+void prepare_packet_msg(packet p, char *payload) {
+    snprintf(payload, BUFFER_SIZE, "%d:%d:%d:%s:%s", p.total_frag, p.frag_no, p.size, p.filename, p.filedata);
 }
 
-void prepare_payload(packet p, char *payload) {
-    snprintf(payload, BUFFER_SIZE, "%d:%d:%d:%s:%s", p.total_frag, p.frag_no, p.size, p.filename, p.filedata);
+void unpack_packet_msg(packet p, char *buffer) {
+
 }
 
 #endif //PACKET_H

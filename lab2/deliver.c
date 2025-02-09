@@ -24,12 +24,12 @@ int check_arguments(const int count) {
 
 void get_filename(char *filename) {
     char dummy[BUFFER_SIZE];
-    printf("Choose a file for FTP by replying with 'ftp <file name>'");
+    printf("Choose a file for FTP by replying with 'ftp <file name>'\n");
     scanf("%s %s", dummy, filename);
 
     // Handle invalid inputs
     while (strcmp(dummy, "ftp") != 0) {
-        printf("Wrong format, please reply with format 'ftp <file name>'");
+        printf("Wrong format, please reply with format 'ftp <file name>'\n");
         scanf("%s %s", dummy, filename);
     }
 }
@@ -41,16 +41,53 @@ int check_file_exists(const char *filename) {
         fclose(fp);
         return 1;
     } else {
-        printf("%s does not exist, exiting...", filename);
+        printf("%s does not exist, exiting...\n", filename);
         return 0;
     }
+}
+
+void send_file(const char *filename, packet p) {
+    // Open file
+    FILE *fp = fopen(filename, "r");
+    if (fp == NULL) {
+        printf("Error opening file %s\n", filename);
+        exit(1);
+    }
+
+    // Determine # fragments required
+    fseek(fp, 0, SEEK_END);
+    int total_frag = ftell(fp) / DATA_SIZE;
+    printf("Total # fragments = %d\n", total_frag);
+    rewind(fp);
+
+    // Packetise file
+    char ack_buf[BUFFER_SIZE];
+    char **packets = malloc(sizeof(char *) * total_frag);
+    for (int i = 1; i <= total_frag; i++) {
+        packet p;
+        p.total_frag = total_frag;
+        p.frag_no = i;
+        p.filename = filename;
+        memset(p.filedata, 0, DATA_SIZE);                   // Clear packet data
+        fread(p.filedata, sizeof(char), DATA_SIZE, fp);
+        p.size = i != total_frag ? DATA_SIZE : ftell(fp);       // !!! TODO: check if it matches up with actual data size
+
+        // Convert packet to message
+        packets[i - 1] = malloc(sizeof(char) * BUFFER_SIZE);
+        prepare_packet_msg(p, packets[i - 1]);
+    }
+
+    // Execute file transfer
+    struct timeval timeout;
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
 }
 
 int main(int argc, char* argv[]) {		// argv[1] for server address, argv[2] for server port
     // PACKET TESTING
     packet test_p = {0,0,0,"a","a"};
     char test_payload[BUFFER_SIZE];
-    prepare_payload(test_p, test_payload);
+    prepare_packet_msg(test_p, test_payload);
     printf("%s\n", test_payload);
 
     // ------------------------------------- NORMAL STUFFS -------------------------------------
@@ -72,7 +109,7 @@ int main(int argc, char* argv[]) {		// argv[1] for server address, argv[2] for s
     // Create socket
     int sockfd;
     if ((sockfd = socket(hints.ai_family, hints.ai_socktype, hints.ai_protocol)) == -1) {
-        printf("Socket error, exiting...");
+        printf("Socket error, exiting...\n");
         exit(1);
     };
 
@@ -81,7 +118,7 @@ int main(int argc, char* argv[]) {		// argv[1] for server address, argv[2] for s
     server.sin_family = AF_INET;
     server.sin_port = htons(atoi(argv[2]));
     if (inet_aton(argv[1] , &server.sin_addr) == 0) {
-        printf("Error in setting up server, exiting...");
+        printf("Error in setting up server, exiting...\n");
         exit(1);
     };
 
@@ -94,7 +131,7 @@ int main(int argc, char* argv[]) {		// argv[1] for server address, argv[2] for s
 
     const char *msg_ftp = "ftp";
     if (sendto(sockfd, msg_ftp, strlen(msg_ftp), 0, (struct sockaddr *) &server, sizeof(server)) < 0) {
-        printf("Error in sending FTP message to server, exiting...");
+        printf("Error in sending FTP message to server, exiting...\n");
         exit(1);
     };
     time_t sent_time = time(NULL);
@@ -106,14 +143,14 @@ int main(int argc, char* argv[]) {		// argv[1] for server address, argv[2] for s
     socklen_t addr_len = sizeof(server_addr);
     ssize_t bytes_recv;
     if ((bytes_recv = recvfrom(sockfd, msg_received, BUFFER_SIZE, 0, (struct sockaddr*) &server_addr, &addr_len)) == -1) {
-        printf("Error in receiving confirmation message from server, exiting...");
+        printf("Error in receiving confirmation message from server, exiting...\n");
     };
     time_t received_time = time(NULL);
     double elapsed_time = difftime(received_time, sent_time);
     printf("RTT time is %lf\n", elapsed_time);
 
     if (bytes_recv < 0) {
-        printf("No message received, exiting...");
+        printf("No message received, exiting...\n");
         close(sockfd);
         exit(1);
     }
@@ -121,7 +158,7 @@ int main(int argc, char* argv[]) {		// argv[1] for server address, argv[2] for s
     char *success_msg = "yes";
     printf("%s\n", msg_received);
     if (strstr(msg_received, success_msg) != NULL) {
-        printf("A file transfer can start!");
+        printf("A file transfer can start!\n");
     }
 
     close(sockfd);
