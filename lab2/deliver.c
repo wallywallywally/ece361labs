@@ -46,7 +46,9 @@ int check_file_exists(const char *filename) {
     }
 }
 
-void send_file(const char *filename, packet p) {
+
+
+void send_file(const char *filename, const int sockfd, packet p) {
     // Open file
     FILE *fp = fopen(filename, "r");
     if (fp == NULL) {
@@ -78,17 +80,23 @@ void send_file(const char *filename, packet p) {
     }
 
     // Execute file transfer
-    struct timeval timeout;
-    timeout.tv_sec = 1;
-    timeout.tv_usec = 0;
+
+
 }
 
 int main(int argc, char* argv[]) {		// argv[1] for server address, argv[2] for server port
     // PACKET TESTING
-    packet test_p = {0,0,0,"a","a"};
+    packet test_p = {0,0,12,"a.txt","lo W\0o\nld!!"};
     char test_payload[BUFFER_SIZE];
     prepare_packet_msg(test_p, test_payload);
-    printf("%s\n", test_payload);
+    //print_debug(test_payload, BUFFER_SIZE);
+
+    packet p2;
+    memset(&p2.filedata, 0, DATA_SIZE);
+    unpack_packet_msg(test_payload, &p2);
+    char test_payload2[BUFFER_SIZE];
+    prepare_packet_msg(p2, test_payload2);
+    //print_debug(test_payload2, BUFFER_SIZE);
 
     // ------------------------------------- NORMAL STUFFS -------------------------------------
     if (!check_arguments(argc)) {
