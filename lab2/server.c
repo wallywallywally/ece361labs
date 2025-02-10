@@ -3,6 +3,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <assert.h>
+
+#include "packet.h"
 
 int main(int argc, char *argv[]) {
   if(argc != 2) {
@@ -33,8 +36,13 @@ int main(int argc, char *argv[]) {
     exit(EXIT_FAILURE); // Terminate the program
   }
 
-  #define BUFF_SIZE 100
+  #define BUFF_SIZE 1024
   char buffer[BUFF_SIZE] = {0};
+
+  // File pointer
+  FILE *file;
+  // Expected fragment number is 1 at first
+  int expected_frag_no = 1;
 
   // Client address structure to store client info
   struct sockaddr_in client_addr;
@@ -50,16 +58,49 @@ int main(int argc, char *argv[]) {
        exit(EXIT_FAILURE);
      }
 
-     char message[bytes + 1];
-     strncpy(message, buffer, bytes);
-     message[bytes] = '\0';
+     packet pkt;
+     unpack_packet_msg(buffer, &pkt);
 
-     char response[4];
-     if(strcmp(message, "ftp") == 0) {
-       strcpy(response, "yes");
+     packet resp_pkt = pkt;
+     resp_pkt.filename = "";
+     resp_pkt.size = 4;
+
+     // Error checking
+     if (expected_frag_no != pkt.frag_no) {
+       fprintf(stderr, "expected_frag_no: %d\npacket frag_no: %d", expected_frag_no, pkt.frag_no);
+       strcpy(resp_pkt.filedata, "NAK");
      } else {
-       strcpy(response, "no");
+       strcpy(resp_pkt.filedata, "ACK");
+
+       if (pkt.frag_no == 1) {
+         // Open a file in write mode
+         file = fopen(resp_pkt.filename, "w");
+
+         if (file == NULL) {
+           fprintf(stderr, "open file error\n");
+           return 1;
+         }
+         assert(file != NULL);
+         printf("File %s created\n", resp_pkt.filename);
+       }
+       fprintf(file, "%s", pkt.filedata);
+
+       // If last packet has been sent close the file stream.
+       if (pkt.frag_no == pkt.total_frag) {
+         if (fclose(file) == 0) {
+           printf("File %s closed\n", resp_pkt.filename);
+         } else {
+           fprintf(stderr, "File %s close error\n", resp_pkt.filename);
+         }
+
+         expected_frag_no = 1;
+       } else {
+         expected_frag_no = pkt.frag_no + 1;
+       }
      }
+
+     char response[BUFF_SIZE] = {0};
+     prepare_packet_msg(resp_pkt, response);
 
      ssize_t bytes_sent = sendto(sockfd, response, strlen(response), 0,
                                  (struct sockaddr *) &client_addr, client_addr_len);
