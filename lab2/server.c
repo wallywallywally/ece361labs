@@ -58,39 +58,59 @@ int main(int argc, char *argv[]) {
        exit(EXIT_FAILURE);
      }
 
+     if (strcmp(buffer, "ftp") == 0) {
+       char *response = "yes\0";
+       ssize_t bytes_sent = sendto(sockfd, response, strlen(response), 0,
+                                 (struct sockaddr *) &client_addr, client_addr_len);
+
+       if(bytes_sent == -1) {
+         fprintf(stderr, "sendto error\n");
+         close(sockfd);
+         exit(EXIT_FAILURE);
+       }
+
+       continue;
+     }
+
      packet pkt;
      unpack_packet_msg(buffer, &pkt);
+     // print_debug(buffer, sizeof(pkt));
 
      packet resp_pkt = pkt;
-     resp_pkt.filename = "";
      resp_pkt.size = 4;
 
      // Error checking
      if (expected_frag_no != pkt.frag_no) {
-       fprintf(stderr, "expected_frag_no: %d\npacket frag_no: %d", expected_frag_no, pkt.frag_no);
+       fprintf(stderr, "expected_frag_no: %d\npacket frag_no: %d\n", expected_frag_no, pkt.frag_no);
        strcpy(resp_pkt.filedata, "NAK");
      } else {
        strcpy(resp_pkt.filedata, "ACK");
 
        if (pkt.frag_no == 1) {
          // Open a file in write mode
-         file = fopen(resp_pkt.filename, "w");
+         char cwd[1024];
+         getcwd(cwd, sizeof(cwd));
+         char filePath[1024];
+         snprintf(filePath, sizeof(filePath), "%s/%s", cwd, pkt.filename);
+
+         file = fopen(filePath, "wb");
 
          if (file == NULL) {
            fprintf(stderr, "open file error\n");
            return 1;
          }
          assert(file != NULL);
-         printf("File %s created\n", resp_pkt.filename);
+         printf("File %s created\n", pkt.filename);
        }
-       fprintf(file, "%s", pkt.filedata);
+       fwrite(pkt.filedata, sizeof(char), pkt.size, file);
+       // fprintf(file, "%s", pkt.filedata);
 
        // If last packet has been sent close the file stream.
        if (pkt.frag_no == pkt.total_frag) {
          if (fclose(file) == 0) {
-           printf("File %s closed\n", resp_pkt.filename);
+           printf("File %s closed\n", pkt.filename);
          } else {
-           fprintf(stderr, "File %s close error\n", resp_pkt.filename);
+           fprintf(stderr, "File %s close error\n", pkt.filename);
          }
 
          expected_frag_no = 1;
