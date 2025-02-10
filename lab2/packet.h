@@ -29,7 +29,6 @@ void print_debug(const char *data, int size) {
     printf("\n\n");
 }
 
-// Sender stuff
 void prepare_packet_msg(packet p, char *payload) {
     int offset = snprintf(payload, BUFFER_SIZE, "%d:%d:%d:%s:", p.total_frag, p.frag_no, p.size, p.filename);
     memcpy(payload + offset, p.filedata, p.size);       // memcpy to ensure data integrity
