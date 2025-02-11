@@ -87,7 +87,7 @@
         packet ack_pkt;
         char recv_buf[BUFFER_SIZE];
         for (int i = 1; i <= total_frag; i++) {
-            print_debug(packets[i - 1], BUFFER_SIZE);
+            //print_debug(packets[i - 1], BUFFER_SIZE);
             // Send packet
             if (sendto(sockfd, packets[i - 1], BUFFER_SIZE, 0, (struct sockaddr *) &server, sizeof(server)) < 0) {
                 printf("Error sending packet %d out of %d to server\n", i, total_frag);
@@ -167,7 +167,7 @@
             printf("Error in sending FTP message to server, exiting...\n");
             exit(1);
         };
-        time_t sent_time = time(NULL);
+        clock_t sent_time = clock();        // CPU ticks elapsed since process started running
 
         // Receive acknowledgement from server
         char msg_received[BUFFER_SIZE];
@@ -177,9 +177,9 @@
         if ((bytes_recv = recvfrom(sockfd, msg_received, BUFFER_SIZE, 0, (struct sockaddr*) &server_addr, &addr_len)) == -1) {
             printf("Error in receiving confirmation message from server, exiting...\n");
         };
-        time_t received_time = time(NULL);
-        double elapsed_time = difftime(received_time, sent_time);
-        printf("RTT time is %lf\n", elapsed_time);
+        clock_t received_time = clock();
+        double elapsed_time = (double) (received_time - sent_time) / CLOCKS_PER_SEC;
+        printf("RTT time is %lfs\n", elapsed_time);
 
         if (bytes_recv < 0) {
             printf("No message received, exiting...\n");
@@ -188,7 +188,6 @@
         }
 
         char *success_msg = "yes";
-        printf("Message received: %s\n", msg_received);
         if (strstr(msg_received, success_msg) != NULL) {
             printf("A file transfer can start!\n\n");
         }
