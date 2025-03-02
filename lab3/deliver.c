@@ -114,7 +114,7 @@ void send_file(const char *filename, int sockfd, struct sockaddr_in server, cloc
         if (recvfrom(sockfd, recv_buf, BUFFER_SIZE, 0, (struct sockaddr *) &server, &addr_len) == -1) {
             // LAB 3 - RETRANSMISSION
             // Timeout occurred
-            printf("Timeout (%.2lds) in receiving ACK for packet %d out of %d from server\n", timeout.tv_usec * 1000000, i, total_frag);
+            printf("Timeout in receiving ACK for packet %d out of %d from server\n", i, total_frag);
             end = clock();
 
             // Update timeout value
@@ -124,7 +124,6 @@ void send_file(const char *filename, int sockfd, struct sockaddr_in server, cloc
                 printf("Error updating timeout\n");
                 exit(1);
             }
-            printf("Timeout value updated to %.2lds\n", timeout.tv_usec * 1000000);
 
             // Retransmit
             printf("Retransmitting packet %d out of %d\n", i, total_frag);
