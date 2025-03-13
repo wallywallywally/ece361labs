@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <assert.h>
+#include <time.h>
 
 #include "packet.h"
 
@@ -12,6 +13,9 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Usage: %s <UDP listen port>\n", argv[0]);
     exit(EXIT_FAILURE); // Terminate the program
   }
+
+  // Seed the random number generator with the current time
+  srand(time(0));
 
   int udp_port = atoi(argv[1]);
 
@@ -75,6 +79,13 @@ int main(int argc, char *argv[]) {
      packet pkt;
      unpack_packet_msg(buffer, &pkt);
      // print_debug(buffer, sizeof(pkt));
+
+     // Simulate dropping packets every one in P
+     #define P 10
+     if (rand() % P == 0) {
+     	printf("Packet fragment number %d dropped\n", pkt.frag_no);
+        continue;
+     }
 
      packet resp_pkt = pkt;
      resp_pkt.size = 4;
