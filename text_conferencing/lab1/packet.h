@@ -14,9 +14,9 @@ typedef struct {
     unsigned int size;
     unsigned char source[MAX_NAME];
     unsigned char data[MAX_DATA];
-} message;
+} Message;
 
-enum message_type {
+enum Message_type {
     LOGIN,
     LO_ACK,
     LO_NAK,
@@ -46,11 +46,11 @@ void print_debug(const char *data, int size) {
     printf("\n\n");
 }
 
-void convert_msg_to_str(const message *msg, char *payload) {
+void convert_msg_to_str(const Message *msg, char *payload) {
     snprintf(payload, BUFFER_SIZE, "%d:%d:%s:%s", msg->type, msg->size, (char *) msg->source, (char *) msg->data);
 }
 
-void convert_str_to_msg(char *payload, message *msg) {
+void convert_str_to_msg(char *payload, Message *msg) {
     int count = 0;
     char *field_ptrs[4];
     field_ptrs[count++] = payload;
