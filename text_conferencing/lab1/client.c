@@ -98,11 +98,14 @@ void login(char* curr, int* sockfd_int, pthread_t* recv_thread) {
         struct addrinfo hints, *server_info, *p;
         hints.ai_family = AF_INET;          // IPv4
         hints.ai_socktype = SOCK_STREAM;    // Bytestream
-        hints.ai_protocol = 0;              // IPPROTO_TCP
+        hints.ai_protocol = IPPROTO_TCP;
+        hints.ai_flags = AI_PASSIVE;
+        printf("%s(%s) connecting to server at %s:%s\n", client_id, password, server_ip, server_port);
 
         // Get server's IP address and socket structure
-        if (getaddrinfo(server_ip, server_port, &hints, &server_info) != 0) {
-            printf("Failed to get server address\n");
+        int help;
+        if ((help = getaddrinfo(server_ip, server_port, &hints, &server_info)) != 0) {
+            printf("Failed to get server address, error %s\n", gai_strerror(help));
             return;
         }
 
