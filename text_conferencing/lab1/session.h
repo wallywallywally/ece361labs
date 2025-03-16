@@ -8,6 +8,8 @@
 
 #include "user.h"
 
+struct User;  // Forward declare the User struct
+
 // A linked list is used to track all sessions
 // This class points to the head of the LL
 typedef struct s {

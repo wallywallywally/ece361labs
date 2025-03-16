@@ -1,4 +1,4 @@
-DEPS = packet.h user.h session.h
+DEPS = packet.h user.h
 
 all: server client
 server: server.c $(DEPS)
