@@ -55,46 +55,50 @@ void *clientThread(void *arg) {
         memset(message, 0, sizeof(Message));
     	memset(response, 0, sizeof(Message));
 
-        printf("cleared mem: %s %u %u\n", buffer, message -> type, response -> type);
         ssize_t bytes = recv(user->sockfd, buffer, BUFFER_SIZE, 0);
-        printf("Received message: %s of size: %zd\n", buffer, bytes);
         if (bytes < 0) {
         	fprintf(stderr, "Error receiving message\n");
         }
         if (bytes == 0) {
-        	printf("Connection closed\n");
+        	break;
         }
         buffer[bytes] = '\0'; // NULL-terminate buffer
 
         convert_str_to_msg(buffer, message);
 
         if (!isAuthenticated) {
-            printf("Client has not authenticated\n");
         	if (message -> type == LOGIN) {
-                printf("Source: %s Data: %s\n", message -> source, message -> data);
 
             	strcpy(user -> username, (const char*) message -> source);
                 strcpy(user -> password, (const char*) message -> data);
-                printf("username: %s password: %s\n", user -> username, user -> password);
 
-                if (is_registered(user)) {
-                	printf("User %s has been registered\n", user -> username);
-
+                int result = is_registered(user);
+                if (result == -1) { 	// user with credentials does not exist
+                	response -> type = LO_NAK;
+                    char* errorMessage = "User not found\n";
+                    strcpy((char *)response -> data, errorMessage);
+                    response -> size = strlen(errorMessage);
+                }
+                else if (isLoggedIn[result]) {
+                	response->type = LO_NAK;
+                    char* errorMessage = "User already logged in\n";
+                	strcpy((char *)response -> data, errorMessage);
+                	response -> size = strlen(errorMessage);
+                }
+                else {
+                	printf("User %s has logged in\n", user -> username);
+                    isLoggedIn[result] = true;
                     response -> type = LO_ACK;
                     isAuthenticated = true;
-                } else {
-                    response -> type = LO_NAK;
                 }
         	} else {
                 response -> type = LO_NAK;
+                char* errorMessage = "User not logged in yet\n";
+        		strcpy((char *)response -> data, errorMessage);
+        		response -> size = strlen(errorMessage);
         	}
-//
-//            response -> size = 2;
-//            strcpy((char*) response -> source, "hi");
-//        	strcpy((char*) response -> data, "hi");
 
         	convert_msg_to_str(response, buffer);
-            printf("Buffer: %s\n", buffer);
             ssize_t bytes_sent = send(user->sockfd, buffer, BUFFER_SIZE - 1, 0);
  			if (bytes_sent < 0) {
             	fprintf(stderr, "Error sending message\n");

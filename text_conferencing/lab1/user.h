@@ -41,6 +41,23 @@ typedef struct User{
 // User functions
 // =========================================================
 
+/* Global vars to check log-in state */
+
+#define NUM_CREDENTIALS 4
+struct Credential {
+    char *username;
+    char *password;
+};
+
+struct Credential credentialList[] = {
+    {    "elvin", "1234" },
+    { "junxiang", "1234" },
+    {  "willson", "1234" },
+    {      "ziv", "1234" },
+};
+
+bool isLoggedIn[NUM_CREDENTIALS] = { false };
+
 // Append `user` to the end of `userList`.
 User* add_user(User* userList, User* user) {
     // If list is empty, new user becomes the head
@@ -99,30 +116,18 @@ bool in_list(User* userList, const char* username) {
     return false;
 }
 
-bool is_registered(User* user) {
-    struct Credential {
-        char *username;
-        char *password;
-    };
-
-    struct Credential credentialList[] = {
-        {    "elvin", "1234" },
-        { "junxiang", "1234" },
-        {  "willson", "1234" },
-        {      "ziv", "1234" },
-    };
-
-    int numCredentials = sizeof(credentialList) / sizeof(credentialList[0]);
-
-    for (int i = 0; i < numCredentials; i++) {
+// If user is in credential list, return position of user
+// Else, return -1
+int is_registered(User* user) {
+    for (int i = 0; i < NUM_CREDENTIALS; i++) {
         if (strcmp (credentialList[i].username, user -> username) == 0) {
             if (strcmp (credentialList[i].password, user -> password) == 0) {
-                return true;
+                return i;
             }
         }
     }
 
-    return false;
+    return -1;
 }
 
 // =========================================================
