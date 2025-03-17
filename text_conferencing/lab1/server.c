@@ -7,11 +7,17 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <assert.h>
 
 #include "packet.h"
 #include "user.h"
 
 #define BACKLOG 16
+
+/* Shared Resources protected by mutex */
+User* userList[NUM_CREDENTIALS] = { NULL };
+char* sessionList[NUM_CREDENTIALS] = { NULL };
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Attempt to bind a socket to the specified port.
 // If port is already in use, return false. Else, return true.
@@ -38,6 +44,12 @@ bool isPortAvailable(int port) {
     close(sockfd);
 
     return true;
+}
+
+void setMessage(Message *response, unsigned int type, char* data) {
+	response->type = type;
+	strcpy((char *)response -> data, data);
+	response -> size = strlen(data);
 }
 
 void *clientThread(void *arg) {
@@ -72,40 +84,143 @@ void *clientThread(void *arg) {
             	strcpy(user -> username, (const char*) message -> source);
                 strcpy(user -> password, (const char*) message -> data);
 
+                pthread_mutex_lock(&mutex);
+
                 int result = is_registered(user);
                 if (result == -1) { 	// user with credentials does not exist
-                	response -> type = LO_NAK;
-                    char* errorMessage = "User not found\n";
-                    strcpy((char *)response -> data, errorMessage);
-                    response -> size = strlen(errorMessage);
+                	setMessage(response, LO_NAK, "User not found");
                 }
-                else if (isLoggedIn[result]) {
-                	response->type = LO_NAK;
-                    char* errorMessage = "User already logged in\n";
-                	strcpy((char *)response -> data, errorMessage);
-                	response -> size = strlen(errorMessage);
+                else if (userList[result] != NULL) {
+                    setMessage(response, LO_NAK, "User already logged in");
                 }
                 else {
-                	printf("User %s has logged in\n", user -> username);
-                    isLoggedIn[result] = true;
-                    response -> type = LO_ACK;
+                	setMessage(response, LO_ACK, "User logged in successfully");
+                    userList[result] = user;
                     isAuthenticated = true;
                 }
+
+                pthread_mutex_unlock(&mutex);
         	} else {
-                response -> type = LO_NAK;
-                char* errorMessage = "User not logged in yet\n";
-        		strcpy((char *)response -> data, errorMessage);
-        		response -> size = strlen(errorMessage);
+        		setMessage(response, LO_NAK, "User not logged in yet");
         	}
 
-        	convert_msg_to_str(response, buffer);
-            ssize_t bytes_sent = send(user->sockfd, buffer, BUFFER_SIZE - 1, 0);
- 			if (bytes_sent < 0) {
-            	fprintf(stderr, "Error sending message\n");
- 			}
-
-            goto start;
+            goto send_message;
         }
+
+        assert(isAuthenticated == true);
+
+        if (message -> type == NEW_SESS) {
+        	int result = is_registered(user);
+            assert(result != -1);
+
+        	pthread_mutex_lock(&mutex);
+
+        	// Check if user is already in a Session
+            if (userList[result] != NULL) {
+            	setMessage(response, JN_NAK, "User already in a session");
+            	pthread_mutex_unlock(&mutex);
+                goto send_message;
+            }
+
+            // Check if session already exists
+            bool doesSessionExist = false;
+            for (int i = 0; i < NUM_CREDENTIALS; i++) {
+                if (sessionList[i] != NULL && strcmp(sessionList[i], message -> data) == 0) {
+                    doesSessionExist = true;
+                }
+            }
+
+            if (doesSessionExist) {
+                setMessage(response, JN_NAK, "Session already exists");
+                pthread_mutex_unlock(&mutex);
+                goto send_message;
+            }
+
+        	strcpy(sessionList[result], (const char*) message -> data);
+            setMessage(response, NS_ACK, "New session created");
+            pthread_mutex_unlock(&mutex);
+            goto send_message;
+        }
+
+        if (message -> type == JOIN) {
+        	int result = is_registered(user);
+        	assert(result != -1);
+
+        	pthread_mutex_lock(&mutex);
+
+        	// Check if user is already in a Session
+        	if (userList[result] != NULL) {
+        		setMessage(response, JN_NAK, "User already in a session");
+        		pthread_mutex_unlock(&mutex);
+        		goto send_message;
+        	}
+
+            // Check if session already exists
+        	bool doesSessionExist = false;
+        	for (int i = 0; i < NUM_CREDENTIALS; i++) {
+        		if (sessionList[i] != NULL && strcmp(sessionList[i], message -> data) == 0) {
+        			doesSessionExist = true;
+        		}
+        	}
+
+        	if (!doesSessionExist) {
+        		setMessage(response, JN_NAK, "Session does not exist");
+        		pthread_mutex_unlock(&mutex);
+        		goto send_message;
+        	}
+
+        	strcpy(sessionList[result], (const char*) message -> data);
+        	setMessage(response, JN_ACK, "Session joined successfully");
+        	pthread_mutex_unlock(&mutex);
+        	goto send_message;
+        }
+
+        if (message -> type == LEAVE_SESS) {
+        	int result = is_registered(user);
+        	assert(result != -1);
+
+        	pthread_mutex_lock(&mutex);
+
+        	// Check if user is already in a Session
+        	if (userList[result] == NULL) {
+        		setMessage(response, JN_NAK, "User is not in a session");
+        		pthread_mutex_unlock(&mutex);
+        		goto send_message;
+        	}
+
+            free(sessionList[result]);
+            sessionList[result] = NULL;
+
+        	setMessage(response, JN_ACK, "Session left successfully");
+        	pthread_mutex_unlock(&mutex);
+        	goto send_message;
+        }
+
+        if (message -> type == QUERY) {
+            char data[MAX_DATA];
+            pthread_mutex_lock(&mutex);
+
+        	for (int i = 0; i < NUM_CREDENTIALS; i++) {
+            	if (userList[i] != NULL) {
+                	char temp[MAX_DATA];
+                    snprintf(temp, MAX_DATA, "Username: %s Session: %s", userList[i] -> username, sessionList[i]);
+                    strcat(data, temp);
+            	}
+        	}
+
+            pthread_mutex_unlock(&mutex);
+
+            setMessage(response, QU_ACK, data);
+            goto send_message;
+        }
+
+        send_message:
+    		convert_msg_to_str(response, buffer);
+    		ssize_t bytes_sent = send(user->sockfd, buffer, BUFFER_SIZE - 1, 0);
+    		if (bytes_sent < 0) {
+    			fprintf(stderr, "Error sending message\n");
+    		}
+        goto start;
     }
 
     return NULL;

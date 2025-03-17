@@ -56,8 +56,6 @@ struct Credential credentialList[] = {
     {      "ziv", "1234" },
 };
 
-bool isLoggedIn[NUM_CREDENTIALS] = { false };
-
 // Append `user` to the end of `userList`.
 User* add_user(User* userList, User* user) {
     // If list is empty, new user becomes the head
