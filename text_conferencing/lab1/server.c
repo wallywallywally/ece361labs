@@ -110,13 +110,15 @@ void *clientThread(void *arg) {
         assert(isAuthenticated == true);
 
         if (message -> type == NEW_SESS) {
+            printf("New session\n");
         	int result = is_registered(user);
             assert(result != -1);
+            printf("Result: %d\n", result);
 
         	pthread_mutex_lock(&mutex);
 
         	// Check if user is already in a Session
-            if (userList[result] != NULL) {
+            if (sessionList[result] != NULL) {
             	setMessage(response, JN_NAK, "User already in a session");
             	pthread_mutex_unlock(&mutex);
                 goto send_message;
@@ -125,10 +127,12 @@ void *clientThread(void *arg) {
             // Check if session already exists
             bool doesSessionExist = false;
             for (int i = 0; i < NUM_CREDENTIALS; i++) {
-                if (sessionList[i] != NULL && strcmp(sessionList[i], message -> data) == 0) {
+                if (sessionList[i] != NULL && strcmp(sessionList[i], (char*) message -> data) == 0) {
                     doesSessionExist = true;
                 }
             }
+
+            printf("Conplete exist check\n");
 
             if (doesSessionExist) {
                 setMessage(response, JN_NAK, "Session already exists");
@@ -136,7 +140,9 @@ void *clientThread(void *arg) {
                 goto send_message;
             }
 
+            sessionList[result] = malloc(sizeof(char) * message -> size);
         	strcpy(sessionList[result], (const char*) message -> data);
+            printf("After Copy\n");
             setMessage(response, NS_ACK, "New session created");
             pthread_mutex_unlock(&mutex);
             goto send_message;
@@ -149,7 +155,7 @@ void *clientThread(void *arg) {
         	pthread_mutex_lock(&mutex);
 
         	// Check if user is already in a Session
-        	if (userList[result] != NULL) {
+        	if (sessionList[result] != NULL) {
         		setMessage(response, JN_NAK, "User already in a session");
         		pthread_mutex_unlock(&mutex);
         		goto send_message;
@@ -182,7 +188,7 @@ void *clientThread(void *arg) {
         	pthread_mutex_lock(&mutex);
 
         	// Check if user is already in a Session
-        	if (userList[result] == NULL) {
+        	if (sessionList[result] == NULL) {
         		setMessage(response, JN_NAK, "User is not in a session");
         		pthread_mutex_unlock(&mutex);
         		goto send_message;
@@ -197,7 +203,7 @@ void *clientThread(void *arg) {
         }
 
         if (message -> type == QUERY) {
-            char data[MAX_DATA];
+            char data[MAX_DATA] = { '\0' };
             pthread_mutex_lock(&mutex);
 
         	for (int i = 0; i < NUM_CREDENTIALS; i++) {
@@ -210,6 +216,8 @@ void *clientThread(void *arg) {
 
             pthread_mutex_unlock(&mutex);
 
+            printf("%s\n", data);
+
             setMessage(response, QU_ACK, data);
             goto send_message;
         }
@@ -220,6 +228,9 @@ void *clientThread(void *arg) {
     		if (bytes_sent < 0) {
     			fprintf(stderr, "Error sending message\n");
     		}
+            else {
+                printf("Message sent: %s\n", buffer);
+            }
         goto start;
     }
 

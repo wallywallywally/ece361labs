@@ -50,7 +50,7 @@ struct Credential {
 };
 
 struct Credential credentialList[] = {
-    {    "elvin", "1234" },
+    {    "e", "1" },
     { "junxiang", "1234" },
     {  "willson", "1234" },
     {      "ziv", "1234" },

@@ -31,7 +31,8 @@ const char* C_QUIT = "/quit";
 void* receive(void* sockfd) {
     int* sockfd_int = (int*) sockfd;
     int numbytes;
-    Message msg;
+    Message* msg = malloc( sizeof(Message) );
+    memset(msg, 0, sizeof(Message));
 
     while (1) {
         if ((numbytes = recv(*sockfd_int, buffer, BUFFER_SIZE - 1, 0)) == INVALID) {
@@ -42,32 +43,36 @@ void* receive(void* sockfd) {
             continue;
         }
         buffer[numbytes] = '\0';
-        convert_str_to_msg(buffer, &msg);
+        //printf("Received message: %s\n", buffer);
+        convert_str_to_msg(buffer, msg);
+        //printf("Sending message: %s\n", msg->data);
 
         // Used for acknowledgements and messaging
-        switch (msg.type) {
+        switch (msg->type) {
             case JN_ACK:
-                printf("Joined session %s\n", msg.data);
+                printf("Joined session %s\n", (const char*) msg->data);
                 in_session = true;
                 break;
             case JN_NAK:
-                printf("Failed to join session %s\n", msg.data);
+                printf("Failed to join session %s\n", (const char*) msg->data);
                 in_session = false;
                 break;
             case NS_ACK:
-                printf("Created and joined session %s\n", msg.data);
+                printf("Created and joined session %s\n", (const char*) msg->data);
                 in_session = true;
                 break;
             case QU_ACK:
-                printf("User \t Session\n%s", msg.data);
-                in_session = true;
+                printf("QU_ACK\n");
+                // TODO: why the fuck don't these bottom lines send unless we "enter"
+                printf("%s", (const char*) buffer);
+                printf("%s", (const char*) msg->data);
                 break;
             case MESSAGE:
-                printf("%s: \t %s", msg.source, msg.data);
+                printf("%s: \t %s", (const char*) msg->source, (const char*) msg->data);
                 in_session = true;
                 break;
             default:
-                printf("Error: %d, %s\n", msg.type, msg.data);
+                printf("Error: %d, %s\n", msg->type, (const char*) msg->data);
         }
     }
     return NULL;
