@@ -40,6 +40,73 @@ bool isPortAvailable(int port) {
     return true;
 }
 
+void *clientThread(void *arg) {
+	User *user = (User *)arg;
+    char buffer[BUFFER_SIZE];
+    Message *message = malloc( sizeof(Message) );
+    Message *response = malloc( sizeof(Message) );
+
+    bool isAuthenticated = false;
+
+    while (true) {
+        start:
+        // Clear previous values in buffer and packet
+    	memset(buffer, 0, sizeof(char) * BUFFER_SIZE);
+        memset(message, 0, sizeof(Message));
+    	memset(response, 0, sizeof(Message));
+
+        printf("cleared mem: %s %u %u\n", buffer, message -> type, response -> type);
+        ssize_t bytes = recv(user->sockfd, buffer, BUFFER_SIZE, 0);
+        printf("Received message: %s of size: %zd\n", buffer, bytes);
+        if (bytes < 0) {
+        	fprintf(stderr, "Error receiving message\n");
+        }
+        if (bytes == 0) {
+        	printf("Connection closed\n");
+        }
+        buffer[bytes] = '\0'; // NULL-terminate buffer
+
+        convert_str_to_msg(buffer, message);
+
+        if (!isAuthenticated) {
+            printf("Client has not authenticated\n");
+        	if (message -> type == LOGIN) {
+                printf("Source: %s Data: %s\n", message -> source, message -> data);
+
+            	strcpy(user -> username, (const char*) message -> source);
+                strcpy(user -> password, (const char*) message -> data);
+                printf("username: %s password: %s\n", user -> username, user -> password);
+
+                if (is_registered(user)) {
+                	printf("User %s has been registered\n", user -> username);
+
+                    response -> type = LO_ACK;
+                    isAuthenticated = true;
+                } else {
+                    response -> type = LO_NAK;
+                }
+        	} else {
+                response -> type = LO_NAK;
+        	}
+//
+//            response -> size = 2;
+//            strcpy((char*) response -> source, "hi");
+//        	strcpy((char*) response -> data, "hi");
+
+        	convert_msg_to_str(response, buffer);
+            printf("Buffer: %s\n", buffer);
+            ssize_t bytes_sent = send(user->sockfd, buffer, BUFFER_SIZE - 1, 0);
+ 			if (bytes_sent < 0) {
+            	fprintf(stderr, "Error sending message\n");
+ 			}
+
+            goto start;
+        }
+    }
+
+    return NULL;
+}
+
 int main(int argc, char *argv[]) {
   	if (argc != 2) {
     	fprintf(stderr, "Usage: server <TCP port number to listen on>\n");
@@ -120,6 +187,8 @@ int main(int argc, char *argv[]) {
             inet_ntop(AF_INET, &addr->sin_addr, ipAddress, INET_ADDRSTRLEN);
             printf("Connection from %s:%d\n", ipAddress, port);
         }
+
+		pthread_create(&(newUser -> p), NULL, clientThread, (void*) newUser);
     }
 
     return 0;

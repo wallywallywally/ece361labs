@@ -99,6 +99,32 @@ bool in_list(User* userList, const char* username) {
     return false;
 }
 
+bool is_registered(User* user) {
+    struct Credential {
+        char *username;
+        char *password;
+    };
+
+    struct Credential credentialList[] = {
+        {    "elvin", "1234" },
+        { "junxiang", "1234" },
+        {  "willson", "1234" },
+        {      "ziv", "1234" },
+    };
+
+    int numCredentials = sizeof(credentialList) / sizeof(credentialList[0]);
+
+    for (int i = 0; i < numCredentials; i++) {
+        if (strcmp (credentialList[i].username, user -> username) == 0) {
+            if (strcmp (credentialList[i].password, user -> password) == 0) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 // =========================================================
 // Session functions
 // =========================================================

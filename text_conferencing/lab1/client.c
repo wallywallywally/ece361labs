@@ -136,10 +136,10 @@ void login(char* curr, int* sockfd_int, pthread_t* recv_thread) {
         int numbytes;
         Message msg = {
             .type = LOGIN,
-            .size = strlen(client_id),
-            .source = *client_id,
-            .data = *password,
+            .size = strlen(password),
         };
+        strcpy(msg.source, client_id);
+        strcpy(msg.data, password);
         convert_msg_to_str(&msg, buffer);
 
         // Send login message
@@ -157,7 +157,6 @@ void login(char* curr, int* sockfd_int, pthread_t* recv_thread) {
             *sockfd_int = INVALID;
             return;
         }
-
         buffer[numbytes] = '\0';
         convert_str_to_msg(buffer, &msg);
         if (msg.type == LO_ACK && pthread_create(recv_thread, NULL, receive, sockfd_int) == 0) {
