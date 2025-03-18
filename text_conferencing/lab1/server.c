@@ -139,7 +139,7 @@ void *clientThread(void *arg) {
             sessionList[result] = malloc(sizeof(char) * message -> size);
         	strcpy(sessionList[result], (const char*) message -> data);
             setMessage(response, NS_ACK, "New session created");
-            printf("New session: %s\n", sessionList[result]);
+
             pthread_mutex_unlock(&mutex);
             goto send_message;
         }
@@ -216,6 +216,46 @@ void *clientThread(void *arg) {
             goto send_message;
         }
 
+        if (message -> type == MESSAGE) {
+        	int result = is_registered(user);
+        	assert(result != -1);
+
+            pthread_mutex_lock(&mutex);
+
+            if (sessionList[result] == NULL) goto start;
+
+            for (int i = 0; i < NUM_CREDENTIALS; i++) {
+            	if (i == result || userList[i] == NULL || sessionList[i] == NULL) continue;
+                	setMessage(response, MESSAGE, message -> data);
+                	convert_msg_to_str(response, buffer);
+
+                    ssize_t bytes_sent = send(userList[i]->sockfd, buffer, BUFFER_SIZE - 1, 0);
+    				if (bytes_sent < 0) {
+    					fprintf(stderr, "Error sending message\n");
+    				}
+            }
+
+            pthread_mutex_unlock(&mutex);
+
+            goto start;
+        }
+
+        if (message -> type == EXIT) {
+            int result = is_registered(user);
+        	assert(result != -1);
+
+        	isAuthenticated = false;
+            pthread_mutex_lock(&mutex);
+
+            userList[result] = NULL;
+            if (sessionList[result] != NULL) free(sessionList[result]);
+            sessionList[result] = NULL;
+
+            pthread_mutex_unlock(&mutex);
+
+            break;
+        }
+
         send_message:
     		convert_msg_to_str(response, buffer);
     		ssize_t bytes_sent = send(user->sockfd, buffer, BUFFER_SIZE - 1, 0);
@@ -226,6 +266,11 @@ void *clientThread(void *arg) {
         goto start;
     }
 
+    close(user->sockfd);
+    free(message);
+    free(response);
+
+    pthread_exit(NULL);
     return NULL;
 }
 
@@ -312,6 +357,9 @@ int main(int argc, char *argv[]) {
 
 		pthread_create(&(newUser -> p), NULL, clientThread, (void*) newUser);
     }
+
+    // Cleanup
+    close(sockfd);
 
     return 0;
 };
