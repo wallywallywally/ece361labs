@@ -374,7 +374,7 @@ int main(void) {
             break;                        // Stop code entirely
         } else {
             // Send message
-            //buffer[toklen] = ' ';
+            buffer[toklen] = ' ';        // Reset extraction of command word
             send_text(&sockfd);
         }
     }
