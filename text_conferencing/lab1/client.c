@@ -48,11 +48,16 @@ void* receive(void* sockfd) {
         // Used for acknowledgements and messaging
         switch (msg->type) {
             case JN_ACK:
-                printf("Joined session - %s\n", (const char*) msg->data);
-                in_session = true;
+                if (strcmp((char*) msg -> data, "Session left successfully") == 0) {
+                	in_session = false;
+                    printf("Left session - %s\n", (const char*) msg->data);
+                } else {
+                	in_session = true;
+                    printf("Joined session - %s\n", (const char*) msg->data);
+                }
                 break;
             case JN_NAK:
-                printf("Failed to join session - %s\n", (const char*) msg->data);
+                printf("Operation failed - %s\n", (const char*) msg->data);
                 in_session = false;
                 break;
             case NS_ACK:
