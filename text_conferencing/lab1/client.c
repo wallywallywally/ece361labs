@@ -360,7 +360,7 @@ int main(void) {
         } else if (strcmp(curr, C_LEAVE_SESSION) == 0) {
             leavesession(&sockfd);
         } else if (strcmp(curr, C_CREATE_SESSION) == 0) {
-            createsession(&sockfd);
+            createsession(curr, &sockfd);
         } else if (strcmp(curr, C_LIST) == 0) {
             list(&sockfd);
         } else if (strcmp(curr, C_QUIT) == 0) {
