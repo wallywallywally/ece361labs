@@ -43,9 +43,7 @@ void* receive(void* sockfd) {
             continue;
         }
         buffer[numbytes] = '\0';
-        //printf("Received message: %s\n", buffer);
         convert_str_to_msg(buffer, msg);
-        //printf("Sending message: %s\n", msg->data);
 
         // Used for acknowledgements and messaging
         switch (msg->type) {
@@ -62,10 +60,7 @@ void* receive(void* sockfd) {
                 in_session = true;
                 break;
             case QU_ACK:
-                printf("QU_ACK\n");
-                // TODO: why the fuck don't these bottom lines send unless we "enter"
-                printf("%s", (const char*) buffer);
-                printf("%s", (const char*) msg->data);
+                printf("Userlist %s\n", msg->data);
                 break;
             case MESSAGE:
                 printf("%s: \t %s", (const char*) msg->source, (const char*) msg->data);
