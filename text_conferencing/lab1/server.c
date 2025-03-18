@@ -171,6 +171,7 @@ void *clientThread(void *arg) {
         		goto send_message;
         	}
 
+            sessionList[result] = malloc(sizeof(char) * message -> size);
         	strcpy(sessionList[result], (const char*) message -> data);
         	setMessage(response, JN_ACK, "Session joined successfully");
         	pthread_mutex_unlock(&mutex);
@@ -227,6 +228,7 @@ void *clientThread(void *arg) {
             for (int i = 0; i < NUM_CREDENTIALS; i++) {
             	if (i == result || userList[i] == NULL || sessionList[i] == NULL) continue;
                 	setMessage(response, MESSAGE, message -> data);
+                    strcpy(response -> source, userList[result] -> username);
                 	convert_msg_to_str(response, buffer);
 
                     ssize_t bytes_sent = send(userList[i]->sockfd, buffer, BUFFER_SIZE - 1, 0);

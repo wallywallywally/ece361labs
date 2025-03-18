@@ -63,7 +63,8 @@ void* receive(void* sockfd) {
                 printf("Userlist %s\n", msg->data);
                 break;
             case MESSAGE:
-                printf("%s: \t %s", (const char*) msg->source, (const char*) msg->data);
+                printf("MSG: %s: %s\n", msg->source, msg->data);
+                fflush(stdout);
                 break;
             default:
                 printf("Error - %d, %s\n", msg->type, (const char*) msg->data);
@@ -192,9 +193,9 @@ void logout(int* sockfd_int, pthread_t* recv_thread) {
     }
 
     if (pthread_cancel(*recv_thread)) {
-        printf("Logged out\n");
+         printf("Failed to logout - recv thread still open\n");
     } else {
-        printf("Failed to logout\n");
+         printf("Logged out\n");
     }
     in_session = false;
     close(*sockfd_int);
