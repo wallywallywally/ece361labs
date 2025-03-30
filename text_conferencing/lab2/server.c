@@ -339,6 +339,39 @@ void *clientThread(void *arg) {
             break;
         }
 
+        if (message -> type == DM) {
+        	int result = is_registered(user);
+        	assert(result != -1);
+
+        	pthread_mutex_lock(&mutex);
+
+            for (int i = 0; i < NUM_CREDENTIALS; i++) {
+            	if (userList[i] != NULL && strcmp(userList[i] -> username, (char*) message -> source) == 0) {
+                	setMessage(response, MESSAGE, message -> data);
+                    strcpy(response -> source, userList[result] -> username);
+
+            		convert_msg_to_str(response, buffer);
+
+            		ssize_t bytes_sent = send(userList[i] -> sockfd, buffer, BUFFER_SIZE - 1, 0);
+            		if (bytes_sent < 0) {
+            			fprintf(stderr, "Error sending message: %s\n", buffer);
+            		}
+
+                    setMessage(response, DM_ACK, "Message sent successfully");
+                    response -> source[0] = '\0';
+
+                    pthread_mutex_unlock(&mutex);
+
+                    goto send_message;
+            	}
+            }
+
+            setMessage(response, DM_NAK, "User does not exist");
+
+            pthread_mutex_unlock(&mutex);
+            goto send_message;
+        }
+
         send_message:
     		convert_msg_to_str(response, buffer);
     		ssize_t bytes_sent = send(user->sockfd, buffer, BUFFER_SIZE - 1, 0);
