@@ -16,7 +16,6 @@
 
 /* Shared Resources protected by mutex */
 User* userList[NUM_CREDENTIALS] = { NULL };
-char* sessionList[NUM_CREDENTIALS] = { NULL };
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Attempt to bind a socket to the specified port.
@@ -115,30 +114,45 @@ void *clientThread(void *arg) {
 
         	pthread_mutex_lock(&mutex);
 
-        	// Check if user is already in a Session
-            if (sessionList[result] != NULL) {
-            	setMessage(response, JN_NAK, "User already in a session");
-            	pthread_mutex_unlock(&mutex);
-                goto send_message;
-            }
-
             // Check if session already exists
             bool doesSessionExist = false;
             for (int i = 0; i < NUM_CREDENTIALS; i++) {
-                if (sessionList[i] != NULL && strcmp(sessionList[i], (char*) message -> data) == 0) {
-                    doesSessionExist = true;
+                for (int j = 0; j < NUM_SESSIONS; j++) {
+                	if (userList[i] != NULL && userList[i] -> sessionList[j] != NULL) {
+                    	if (strcmp(userList[i] -> sessionList[j], (char*) message -> data) == 0) {
+                    		doesSessionExist = true;
+                    	}
+                	}
                 }
             }
-
             if (doesSessionExist) {
                 setMessage(response, JN_NAK, "Session already exists");
                 pthread_mutex_unlock(&mutex);
                 goto send_message;
             }
 
-            sessionList[result] = malloc(sizeof(char) * message -> size);
-        	strcpy(sessionList[result], (const char*) message -> data);
-            setMessage(response, NS_ACK, "New session created");
+        	// Check if user can join a session
+            bool hasCapacity = false;
+            for (int i = 0; i < NUM_SESSIONS; i++) {
+            	if (userList[result] -> sessionList[i] == NULL) hasCapacity = true;
+            }
+        	if (hasCapacity == false) {
+        		setMessage(response, JN_NAK, "User already in maximum number of sessions");
+        		pthread_mutex_unlock(&mutex);
+        		goto send_message;
+        	}
+
+            for (int i = 0; i < NUM_SESSIONS; i++) {
+            	if (userList[result] -> sessionList[i] == NULL) {
+                	userList[result] -> sessionList[i] = malloc(sizeof(char) * message -> size);
+                    strcpy(userList[result] -> sessionList[i], (const char*) message -> data);
+
+                    setMessage(response, NS_ACK, "New session created");
+                    strcpy(response -> source, (const char*) message -> data);
+
+                    break;
+            	}
+            }
 
             pthread_mutex_unlock(&mutex);
             goto send_message;
@@ -150,30 +164,56 @@ void *clientThread(void *arg) {
 
         	pthread_mutex_lock(&mutex);
 
-        	// Check if user is already in a Session
-        	if (sessionList[result] != NULL) {
-        		setMessage(response, JN_NAK, "User already in a session");
+        	// Check if user can join a session, or if user is already in specified session
+        	bool hasCapacity = false;
+            bool isAlreadyInSession = false;
+        	for (int i = 0; i < NUM_SESSIONS; i++) {
+        		if (userList[result] -> sessionList[i] == NULL) hasCapacity = true;
+                if (userList[result] -> sessionList[i] != NULL
+                	&& strcmp(userList[result] -> sessionList[i], (char*) message -> data) == 0) {
+                		isAlreadyInSession = true;
+                	}
+        	}
+        	if (hasCapacity == false) {
+        		setMessage(response, JN_NAK, "User already in maximum number of sessions");
         		pthread_mutex_unlock(&mutex);
         		goto send_message;
         	}
+            if (isAlreadyInSession == true) {
+            	setMessage(response, JN_NAK, "User already in the session");
+                pthread_mutex_unlock(&mutex);
+                goto send_message;
+            }
 
             // Check if session already exists
         	bool doesSessionExist = false;
         	for (int i = 0; i < NUM_CREDENTIALS; i++) {
-        		if (sessionList[i] != NULL && strcmp(sessionList[i], message -> data) == 0) {
-        			doesSessionExist = true;
+        		for (int j = 0; j < NUM_SESSIONS; j++) {
+        			if (userList[i] != NULL && userList[i] -> sessionList[j] != NULL) {
+        				if (strcmp(userList[i] -> sessionList[j], (char*) message -> data) == 0) {
+        					doesSessionExist = true;
+        				}
+        			}
         		}
         	}
-
         	if (!doesSessionExist) {
         		setMessage(response, JN_NAK, "Session does not exist");
         		pthread_mutex_unlock(&mutex);
         		goto send_message;
         	}
 
-            sessionList[result] = malloc(sizeof(char) * message -> size);
-        	strcpy(sessionList[result], (const char*) message -> data);
-        	setMessage(response, JN_ACK, "Session joined successfully");
+        	for (int i = 0; i < NUM_SESSIONS; i++) {
+        		if (userList[result] -> sessionList[i] == NULL) {
+        			userList[result] -> sessionList[i] = malloc(sizeof(char) * message -> size);
+        			strcpy(userList[result] -> sessionList[i], (const char*) message -> data);
+
+                    setMessage(response, JN_ACK, "Session joined successfully");
+        			strcpy(response -> source, (const char*) message -> data);
+
+        			break;
+        		}
+        	}
+
         	pthread_mutex_unlock(&mutex);
         	goto send_message;
         }
@@ -184,19 +224,31 @@ void *clientThread(void *arg) {
 
         	pthread_mutex_lock(&mutex);
 
-        	// Check if user is already in a Session
-        	if (sessionList[result] == NULL) {
-        		setMessage(response, JN_NAK, "User is not in a session");
+        	// Check if user is already in the Session
+            bool hasLeftSession = false;
+            for (int i = 0; i < NUM_SESSIONS; i++) {
+            	if (userList[result] -> sessionList[i] != NULL
+                	&& strcmp(userList[result] -> sessionList[i], (char*) message -> data) == 0) {
+                  		free(userList[result] -> sessionList[i]);
+                        userList[result] -> sessionList[i] = NULL;
+
+                        hasLeftSession = true;
+
+                        setMessage(response, JN_ACK, "Session left successfully");
+            			strcpy(response -> source, (const char*) message -> data);
+
+            			pthread_mutex_unlock(&mutex);
+            			goto send_message;
+                	}
+            }
+
+        	if (hasLeftSession == false) {
+        		setMessage(response, JN_NAK, "User is not in session");
         		pthread_mutex_unlock(&mutex);
         		goto send_message;
         	}
 
-            free(sessionList[result]);
-            sessionList[result] = NULL;
-
-        	setMessage(response, JN_ACK, "Session left successfully");
-        	pthread_mutex_unlock(&mutex);
-        	goto send_message;
+        	fprintf(stderr, "Something went wrong with LEAVE_SESS\n");
         }
 
         if (message -> type == QUERY) {
@@ -204,11 +256,21 @@ void *clientThread(void *arg) {
             pthread_mutex_lock(&mutex);
 
         	for (int i = 0; i < NUM_CREDENTIALS; i++) {
-            	if (userList[i] != NULL) {
-                	char temp[MAX_DATA] = { '\0' };
-                    snprintf(temp, MAX_DATA, "Username - %s Session - %s | ", userList[i] -> username, sessionList[i]);
+                if (userList[i] == NULL) continue;
+
+                char temp[MAX_DATA] = { '\0' };
+                snprintf(temp, MAX_DATA, "Username - %s Session - ", userList[i] -> username);
+                strcat(data, temp);
+
+                for (int j = 0; j < NUM_SESSIONS; j++) {
+                	if (userList[i] -> sessionList[j] == NULL) continue;
+
+                	memset(temp, '\0', sizeof(char) * MAX_DATA);
+                    snprintf(temp, MAX_DATA, "%s ", userList[i] -> sessionList[j]);
                     strcat(data, temp);
-            	}
+                }
+
+                strcat(data, "|\n");
         	}
 
             pthread_mutex_unlock(&mutex);
@@ -223,18 +285,33 @@ void *clientThread(void *arg) {
 
             pthread_mutex_lock(&mutex);
 
-            if (sessionList[result] == NULL) goto start;
+            for (int i = 0; i < NUM_SESSIONS; i++) {
+            	if (userList[result] -> sessionList[i] == NULL) continue;
 
-            for (int i = 0; i < NUM_CREDENTIALS; i++) {
-            	if (i == result || userList[i] == NULL || sessionList[i] == NULL) continue;
-                	setMessage(response, MESSAGE, message -> data);
-                    strcpy(response -> source, userList[result] -> username);
-                	convert_msg_to_str(response, buffer);
+                char* currSession = userList[result] -> sessionList[i];
+                assert(currSession != NULL);
 
-                    ssize_t bytes_sent = send(userList[i]->sockfd, buffer, BUFFER_SIZE - 1, 0);
-    				if (bytes_sent < 0) {
-    					fprintf(stderr, "Error sending message\n");
-    				}
+                for (int j = 0; j < NUM_CREDENTIALS; j++) {
+                	if (userList[j] == NULL || j == result) continue;
+
+                    for (int k = 0; k < NUM_SESSIONS; k++) {
+                    	if (userList[j] -> sessionList[k] == NULL) continue;
+
+                        if (strcmp(userList[j] -> sessionList[k], currSession) == 0) {
+                        	setMessage(response, MESSAGE, message -> data);
+                            char temp[MAX_DATA] = { '\0' };
+                            snprintf(temp, MAX_DATA, "%s %s", currSession, userList[result] -> username);
+
+                            strcpy(response -> source, temp);
+                            convert_msg_to_str(response, buffer);
+
+                            ssize_t bytes_sent = send(userList[j] -> sockfd, buffer, BUFFER_SIZE - 1, 0);
+                            if (bytes_sent < 0) {
+                            	fprintf(stderr, "Error sending message: %s\n", buffer);
+                            }
+                        }
+                	}
+                }
             }
 
             pthread_mutex_unlock(&mutex);
@@ -249,9 +326,13 @@ void *clientThread(void *arg) {
         	isAuthenticated = false;
             pthread_mutex_lock(&mutex);
 
+            // userList[result] = NULL;
+            for (int i = 0; i < NUM_SESSIONS; i++) {
+            	if (userList[result] -> sessionList[i] == NULL) continue;
+                free(userList[result] -> sessionList[i]);
+                userList[result] -> sessionList[i] = NULL;
+            }
             userList[result] = NULL;
-            if (sessionList[result] != NULL) free(sessionList[result]);
-            sessionList[result] = NULL;
 
             pthread_mutex_unlock(&mutex);
 
