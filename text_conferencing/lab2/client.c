@@ -79,8 +79,6 @@ void clear_sessions() {
     }
 }
 
-// i need to receive session id from server !!!
-
 // Command strings
 const char* C_LOGIN = "/login";
 const char* C_LOGOUT = "/logout";
@@ -116,11 +114,11 @@ void* receive(void* sockfd) {
                 if (strcmp((char*) msg -> data, "Session left successfully") == 0) {
                     // Leave session
                     printf("Left session - %s\n", (const char*) msg->data);
-                    remove_session(msg->data);
+                    remove_session(msg->source);
                 } else {
                     // Join session
                     printf("Joined session - %s\n", (const char*) msg->data);
-                    add_session(msg->data);
+                    add_session(msg->source);
                 }
                 break;
             case JN_NAK:
@@ -128,10 +126,16 @@ void* receive(void* sockfd) {
                 break;
             case NS_ACK:
                 printf("Created and joined session - %s\n", (const char*) msg->data);
-                add_session(msg->data);
+                add_session(msg->source);
                 break;
             case QU_ACK:
                 printf("Userlist %s\n", (const char*) msg->data);
+                break;
+            case DM_ACK:
+                printf("Private message successfully sent - %s\n", (const char*) msg->data);
+                break;
+            case DM_NAK:
+                printf("Private message failed to send - %s\n", (const char*) msg->data);
                 break;
             case MESSAGE:
                 printf("MSG: %s: %s\n", (const char*) msg->source, (const char*) msg->data);
@@ -320,7 +324,7 @@ void leavesession(char* curr, int* sockfd_int) {
     int numbytes;
     Message msg = {
         .type = LEAVE_SESS,
-        .size = 0,
+        .size = strlen(id),
     };
     strcpy(msg.data, id);
     convert_msg_to_str(&msg, buffer);
@@ -349,7 +353,7 @@ void createsession(char* curr, int* sockfd_int) {
     int numbytes;
     Message msg = {
         .type = NEW_SESS,
-        .size = 0,
+        .size = strlen(id),
     };
     strcpy(msg.data, id);
     convert_msg_to_str(&msg, buffer);
@@ -378,7 +382,6 @@ void send_text(int* sockfd_int) {
 
     if ((numbytes = send(*sockfd_int, buffer, BUFFER_SIZE - 1, 0)) == -1) {
         printf("Failed to send text - failed to send request\n");
-        return;
     }
 }
 
@@ -407,24 +410,27 @@ void send_dm(char* curr, int* sockfd_int) {
         return;
     }
 
-    // curr = strtok(NULL, " ");
-    // const char* user = curr;
-    // if (user == NULL) {
-    //     printf("Failed to send private message - invalid arguments\n");
-    //     return;
-    // }
-    //
-    // ssize_t numbytes;
-    // Message msg = {
-    //     .type = JOIN,
-    //     .size = strlen(id),
-    // };
-    // strcpy(msg.data, id);
-    // convert_msg_to_str(&msg, buffer);
-    //
-    // if ((numbytes = send(*sockfd_int, buffer, BUFFER_SIZE - 1, 0)) == -1) {
-    //     printf("Failed to join session - failed to send request\n");
-    // }
+    curr = strtok(NULL, " ");
+    const char* dest = curr;
+    curr = strtok(NULL, " ");
+    const char* payload = curr;
+    if (dest == NULL || payload == NULL) {
+        printf("Failed to send private message - invalid arguments\n");
+        return;
+    }
+
+    ssize_t numbytes;
+    Message msg = {
+        .type = DM,
+        .size = strlen(payload),
+    };
+    strcpy(msg.source, dest);
+    strcpy(msg.data, payload);
+    convert_msg_to_str(&msg, buffer);
+
+    if ((numbytes = send(*sockfd_int, buffer, BUFFER_SIZE - 1, 0)) == -1) {
+        printf("Failed to join session - failed to send request\n");
+    }
 }
 
 // MAIN

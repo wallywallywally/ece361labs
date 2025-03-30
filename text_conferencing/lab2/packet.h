@@ -28,6 +28,9 @@ enum Message_type {
     NEW_SESS,
     NS_ACK,
     MESSAGE,
+    DM,
+    DM_ACK,
+    DM_NAK,
     QUERY,
     QU_ACK
 };
