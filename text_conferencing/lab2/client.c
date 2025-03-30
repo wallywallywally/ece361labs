@@ -412,12 +412,18 @@ void send_dm(char* curr, int* sockfd_int) {
 
     curr = strtok(NULL, " ");
     const char* dest = curr;
-    curr = strtok(NULL, " ");
-    const char* payload = curr;
-    if (dest == NULL || payload == NULL) {
+
+    if (dest == NULL) {
         printf("Failed to send private message - invalid arguments\n");
         return;
     }
+
+    char* payload = strchr(curr + strlen(dest), ' ');
+    if (payload == NULL || *(payload + 1) == '\0') {
+        printf("Failed to send private message - invalid arguments\n");
+        return;
+    }
+    payload++;
 
     ssize_t numbytes;
     Message msg = {
