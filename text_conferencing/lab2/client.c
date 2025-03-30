@@ -48,11 +48,16 @@ void* receive(void* sockfd) {
         // Used for acknowledgements and messaging
         switch (msg->type) {
             case JN_ACK:
-                printf("Joined session - %s\n", (const char*) msg->data);
-                in_session = true;
+                if (strcmp((char*) msg -> data, "Session left successfully") == 0) {
+                	in_session = false;
+                    printf("Left session - %s\n", (const char*) msg->data);
+                } else {
+                	in_session = true;
+                    printf("Joined session - %s\n", (const char*) msg->data);
+                }
                 break;
             case JN_NAK:
-                printf("Failed to join session - %s\n", (const char*) msg->data);
+                printf("Operation failed - %s\n", (const char*) msg->data);
                 in_session = false;
                 break;
             case NS_ACK:
@@ -63,7 +68,8 @@ void* receive(void* sockfd) {
                 printf("Userlist %s\n", msg->data);
                 break;
             case MESSAGE:
-                printf("%s: \t %s", (const char*) msg->source, (const char*) msg->data);
+                printf("MSG: %s: %s\n", msg->source, msg->data);
+                fflush(stdout);
                 break;
             default:
                 printf("Error - %d, %s\n", msg->type, (const char*) msg->data);
@@ -192,9 +198,9 @@ void logout(int* sockfd_int, pthread_t* recv_thread) {
     }
 
     if (pthread_cancel(*recv_thread)) {
-        printf("Logged out\n");
+         printf("Failed to logout - recv thread still open\n");
     } else {
-        printf("Failed to logout\n");
+         printf("Logged out\n");
     }
     in_session = false;
     close(*sockfd_int);
@@ -368,7 +374,7 @@ int main(void) {
             break;                        // Stop code entirely
         } else {
             // Send message
-            //buffer[toklen] = ' ';
+            buffer[toklen] = ' ';        // Reset extraction of command word
             send_text(&sockfd);
         }
     }
