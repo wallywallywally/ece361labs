@@ -1,5 +1,3 @@
-oops i should've done this first
+Done for University of Toronto's ECE361H1 Computer Networks I
 
-Test push on lab computer
-
-https://github.com/JonnyKong/UofT-ECE361-ComputerNetworks
+haha hehehe
