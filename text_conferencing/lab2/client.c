@@ -10,12 +10,76 @@
 #include <stdbool.h>
 
 #include "packet.h"
-//#include "session.h"
-#define INVALID -1
+#define INVALID (-1)
+#define MAX_NAME 32
+
 
 // Client details
 char buffer[BUFFER_SIZE];
-bool in_session = false;
+
+typedef struct s {
+    char id[MAX_NAME];
+    struct s* next;         // Linked list implementation
+} Session;
+Session* head = NULL;
+
+bool in_session(const char* id) {
+    Session* current = head;
+    while (current) {
+        if (strcmp(current->id, id) == 0) {
+            free(current);
+            return true;
+        }
+        current = current->next;
+    }
+    free(current);
+    return false;
+}
+
+void add_session(const char* id) {
+    if (head) {
+        // Add to head
+        Session* new_session = malloc(sizeof(Session));
+        strcpy(new_session->id, id);
+        new_session->next = head;
+        head = new_session;
+    } else {
+        // Create new head
+        head = malloc(sizeof(Session));
+        strcpy(head->id, id);
+        head->next = NULL;
+    }
+}
+
+void remove_session(const char* id) {
+    // Only 1 session
+    if (head->next == NULL) {
+        free(head);
+        head = NULL;
+        return;
+    }
+
+    Session *target = head, *del = NULL;
+    while (target->next) {
+        if (strcmp(target->next->id, id) == 0) {
+            break;
+        }
+        target = target->next;
+    }
+    del = target->next;
+    target->next = target->next->next;
+    free(del);
+}
+
+void clear_sessions() {
+    while (head) {
+        Session* current = head;
+        head = head->next;
+        free(current);
+    }
+}
+
+// i need to receive session id from server !!!
 
 // Command strings
 const char* C_LOGIN = "/login";
@@ -24,6 +88,7 @@ const char* C_JOIN_SESSION = "/joinsession";
 const char* C_LEAVE_SESSION = "/leavesession";
 const char* C_CREATE_SESSION = "/createsession";
 const char* C_LIST = "/list";
+const char* C_DM = "/dm";
 const char* C_QUIT = "/quit";
 
 // Handle messages from server
@@ -49,33 +114,33 @@ void* receive(void* sockfd) {
         switch (msg->type) {
             case JN_ACK:
                 if (strcmp((char*) msg -> data, "Session left successfully") == 0) {
-                	in_session = false;
+                    // Leave session
                     printf("Left session - %s\n", (const char*) msg->data);
+                    remove_session(msg->data);
                 } else {
-                	in_session = true;
+                    // Join session
                     printf("Joined session - %s\n", (const char*) msg->data);
+                    add_session(msg->data);
                 }
                 break;
             case JN_NAK:
                 printf("Operation failed - %s\n", (const char*) msg->data);
-                in_session = false;
                 break;
             case NS_ACK:
                 printf("Created and joined session - %s\n", (const char*) msg->data);
-                in_session = true;
+                add_session(msg->data);
                 break;
             case QU_ACK:
-                printf("Userlist %s\n", msg->data);
+                printf("Userlist %s\n", (const char*) msg->data);
                 break;
             case MESSAGE:
-                printf("MSG: %s: %s\n", msg->source, msg->data);
+                printf("MSG: %s: %s\n", (const char*) msg->source, (const char*) msg->data);
                 fflush(stdout);
                 break;
             default:
                 printf("Error - %d, %s\n", msg->type, (const char*) msg->data);
         }
     }
-    return NULL;
 }
 
 // COMMANDS
@@ -138,7 +203,7 @@ void login(char* curr, int* sockfd_int, pthread_t* recv_thread) {
         printf("Connected to server\n");
 
         // LOGIN FLOW
-        int numbytes;
+        ssize_t numbytes;
         Message msg = {
             .type = LOGIN,
             .size = strlen(password),
@@ -186,7 +251,7 @@ void logout(int* sockfd_int, pthread_t* recv_thread) {
         return;
     }
 
-    int numbytes;
+    ssize_t numbytes;
     Message msg = {
         .type = EXIT,
         .size = 0,
@@ -202,7 +267,7 @@ void logout(int* sockfd_int, pthread_t* recv_thread) {
     } else {
          printf("Logged out\n");
     }
-    in_session = false;
+    clear_sessions();
     close(*sockfd_int);
     *sockfd_int = INVALID;
 }
@@ -211,37 +276,44 @@ void joinsession(char* curr, int* sockfd_int) {
     if (*sockfd_int == INVALID) {
         printf("Failed to join session - not logged in\n");
         return;
-    } else if (in_session) {
-        printf("Failed to join session - already in one\n");
+    }
+
+    curr = strtok(NULL, " ");
+    const char* id = curr;
+    if (id == NULL) {
+        printf("Failed to join session - invalid arguments\n");
+        return;
+    } else if (in_session(id)) {
+        printf("Failed to join session - already in given session\n");
+        return;
+    }
+
+    ssize_t numbytes;
+    Message msg = {
+        .type = JOIN,
+        .size = strlen(id),
+    };
+    strcpy(msg.data, id);
+    convert_msg_to_str(&msg, buffer);
+
+    if ((numbytes = send(*sockfd_int, buffer, BUFFER_SIZE - 1, 0)) == -1) {
+        printf("Failed to join session - failed to send request\n");
+    }
+}
+
+void leavesession(char* curr, int* sockfd_int) {
+    if (*sockfd_int == INVALID) {
+        printf("Failed to leave session - not logged in\n");
         return;
     }
 
     curr = strtok(NULL, " ");
     const char* id = curr;
-    if (id != NULL) {
-        int numbytes;
-        Message msg = {
-            .type = JOIN,
-            .size = strlen(id),
-        };
-        strcpy(msg.data, id);
-        convert_msg_to_str(&msg, buffer);
-
-        if ((numbytes = send(*sockfd_int, buffer, BUFFER_SIZE - 1, 0)) == -1) {
-            printf("Failed to join session - failed to send request\n");
-            return;
-        }
-    } else {
-        printf("Failed to join session - invalid arguments\n");
-    }
-}
-
-void leavesession(int* sockfd_int) {
-    if (*sockfd_int == INVALID) {
-        printf("Failed to leave session - not logged in\n");
+    if (id == NULL) {
+        printf("Failed to leave session - invalid arguments\n");
         return;
-    } else if (!in_session) {
-        printf("Failed to leave session - not in any session\n");
+    } else if (head == NULL || in_session(id)) {
+        printf("Failed to leave session - not in given session\n");
         return;
     }
 
@@ -250,41 +322,40 @@ void leavesession(int* sockfd_int) {
         .type = LEAVE_SESS,
         .size = 0,
     };
+    strcpy(msg.data, id);
     convert_msg_to_str(&msg, buffer);
 
     if ((numbytes = send(*sockfd_int, buffer, BUFFER_SIZE - 1, 0)) == -1) {
         printf("Failed to leave session - failed to send request\n");
-        return;
     }
-    in_session = false;
 }
 
 void createsession(char* curr, int* sockfd_int) {
     if (*sockfd_int == INVALID) {
         printf("Failed to create session - not logged in\n");
         return;
-    } else if (in_session) {
-        printf("Failed to create session - already in one\n");
-        return;
     }
 
     curr = strtok(NULL, " ");
     const char* id = curr;
-    if (id != NULL) {
-        int numbytes;
-        Message msg = {
-            .type = NEW_SESS,
-            .size = 0,
-        };
-        strcpy(msg.data, id);
-        convert_msg_to_str(&msg, buffer);
+    if (id == NULL) {
+        printf("Failed to create session - invalid arguments\n");
+        return;
+    } else if (in_session(id)) {
+        printf("Failed to create session - already in given session\n");
+        return;
+    }
 
-        if ((numbytes = send(*sockfd_int, buffer, BUFFER_SIZE - 1, 0)) == -1) {
-            printf("Failed to create session - failed to send request\n");
-            return;
-        }
-    } else {
-        printf("Failed to join session - invalid arguments\n");
+    int numbytes;
+    Message msg = {
+        .type = NEW_SESS,
+        .size = 0,
+    };
+    strcpy(msg.data, id);
+    convert_msg_to_str(&msg, buffer);
+
+    if ((numbytes = send(*sockfd_int, buffer, BUFFER_SIZE - 1, 0)) == -1) {
+        printf("Failed to create session - failed to send request\n");
     }
 }
 
@@ -292,7 +363,7 @@ void send_text(int* sockfd_int) {
     if (*sockfd_int == INVALID) {
         printf("Failed to send text - not logged in\n");
         return;
-    } else if (!in_session) {
+    } else if (head == NULL) {
         printf("Failed to send text - not in any session\n");
         return;
     }
@@ -330,6 +401,32 @@ void list(int* sockfd_int) {
     }
 }
 
+void send_dm(char* curr, int* sockfd_int) {
+    if (*sockfd_int == INVALID) {
+        printf("Failed to send private message - not logged in\n");
+        return;
+    }
+
+    // curr = strtok(NULL, " ");
+    // const char* user = curr;
+    // if (user == NULL) {
+    //     printf("Failed to send private message - invalid arguments\n");
+    //     return;
+    // }
+    //
+    // ssize_t numbytes;
+    // Message msg = {
+    //     .type = JOIN,
+    //     .size = strlen(id),
+    // };
+    // strcpy(msg.data, id);
+    // convert_msg_to_str(&msg, buffer);
+    //
+    // if ((numbytes = send(*sockfd_int, buffer, BUFFER_SIZE - 1, 0)) == -1) {
+    //     printf("Failed to join session - failed to send request\n");
+    // }
+}
+
 // MAIN
 int main(void) {
     char* curr;
@@ -364,11 +461,13 @@ int main(void) {
         } else if (strcmp(curr, C_JOIN_SESSION) == 0) {
             joinsession(curr, &sockfd);
         } else if (strcmp(curr, C_LEAVE_SESSION) == 0) {
-            leavesession(&sockfd);
+            leavesession(curr, &sockfd);
         } else if (strcmp(curr, C_CREATE_SESSION) == 0) {
             createsession(curr, &sockfd);
         } else if (strcmp(curr, C_LIST) == 0) {
             list(&sockfd);
+        } else if (strcmp(curr, C_DM) == 0) {
+            send_dm(curr, &sockfd);
         } else if (strcmp(curr, C_QUIT) == 0) {
             logout(&sockfd, &recv_thread);
             break;                        // Stop code entirely
